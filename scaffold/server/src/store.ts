@@ -284,8 +284,13 @@ async function dispatchOne(workerId: string): Promise<void> {
       await delayOutbound(job._id, delayMs);
       return;
     }
-    if (!response.ok) throw new Error(`Pigeon send returned ${response.status}`);
-    const result = await response.json() as { id?: unknown };
+    if (response.status !== 200) throw new Error(`Pigeon send returned ${response.status}`);
+    const result: unknown = await response.json();
+    if (typeof result !== 'object' || result === null
+      || !('id' in result) || typeof result.id !== 'string' || !result.id
+      || !('status' in result) || result.status !== 'accepted') {
+      throw new Error('Pigeon returned an invalid send response');
+    }
     const updated = await outbound.updateOne(
       { _id: job._id, status: 'queued' },
       { $set: { status: 'sent', providerId: result.id, leaseUntil: null, updatedAt: new Date() } },
@@ -297,6 +302,11 @@ async function dispatchOne(workerId: string): Promise<void> {
         client_ref: job.clientRef,
         status: 'sent',
       });
+    } else {
+      await outbound.updateOne(
+        { _id: job._id },
+        { $set: { providerId: result.id, leaseUntil: null, updatedAt: new Date() } },
+      );
     }
   } catch (error) {
     const delayMs = Math.min(30_000, 500 * (2 ** Math.min(Number(job.attempts) - 1, 6)));

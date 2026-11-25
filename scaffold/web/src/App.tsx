@@ -39,7 +39,11 @@ export function App() {
   const [reply, setReply] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingReply = useRef<{ text: string; clientRef: string } | null>(null);
   const lastSeq = useRef(0);
+  const workspaceGeneration = useRef(0);
+  const selectionRef = useRef({ workspace, contact });
+  selectionRef.current = { workspace, contact };
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.contact === contact),
@@ -48,9 +52,11 @@ export function App() {
 
   const refreshConversations = useCallback(async () => {
     if (!workspace) return;
+    const generation = workspaceGeneration.current;
     const result = await requestJson<{ conversations: Conversation[]; nextCursor: string | null }>(
       `/api/conversations?workspace=${encodeURIComponent(workspace)}&limit=30`,
     );
+    if (generation !== workspaceGeneration.current || selectionRef.current.workspace !== workspace) return;
     setConversations(result.conversations);
     setNextCursor(result.nextCursor);
     setContact((current) => current && result.conversations.some((item) => item.contact === current)
@@ -60,9 +66,11 @@ export function App() {
 
   const loadMoreConversations = useCallback(async () => {
     if (!workspace || !nextCursor) return;
+    const generation = workspaceGeneration.current;
     const result = await requestJson<{ conversations: Conversation[]; nextCursor: string | null }>(
       `/api/conversations?workspace=${encodeURIComponent(workspace)}&limit=30&cursor=${encodeURIComponent(nextCursor)}`,
     );
+    if (generation !== workspaceGeneration.current || selectionRef.current.workspace !== workspace) return;
     setConversations((current) => {
       const byContact = new Map(current.map((item) => [item.contact, item]));
       for (const item of result.conversations) byContact.set(item.contact, item);
@@ -79,9 +87,13 @@ export function App() {
       setMessages([]);
       return;
     }
+    const generation = workspaceGeneration.current;
     const result = await requestJson<{ messages: Message[] }>(
       `/api/conversations/${encodeURIComponent(contact)}/messages?workspace=${encodeURIComponent(workspace)}`,
     );
+    if (generation !== workspaceGeneration.current
+      || selectionRef.current.workspace !== workspace
+      || selectionRef.current.contact !== contact) return;
     setMessages(result.messages);
   }, [workspace, contact]);
 
@@ -188,11 +200,16 @@ export function App() {
     setBusy(true);
     setError('');
     const text = reply.trim();
+    const clientRef = pendingReply.current?.text === text
+      ? pendingReply.current.clientRef
+      : crypto.randomUUID();
+    pendingReply.current = { text, clientRef };
     try {
       await requestJson(`/api/conversations/${encodeURIComponent(selected.contact)}/reply`, {
         method: 'POST',
-        body: JSON.stringify({ workspace, text, client_ref: crypto.randomUUID() }),
+        body: JSON.stringify({ workspace, text, client_ref: clientRef }),
       });
+      pendingReply.current = null;
       setReply('');
       await refreshMessages();
     } catch (cause) {
@@ -208,6 +225,7 @@ export function App() {
     try {
       const response = await fetch('/auth/logout', { method: 'POST' });
       if (!response.ok) throw new Error(`Could not sign out (${response.status})`);
+      workspaceGeneration.current += 1;
       setUser(null);
       setWorkspace('');
       setConversations([]);
@@ -218,6 +236,16 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function changeWorkspace(nextWorkspace: string) {
+    workspaceGeneration.current += 1;
+    setConversations([]);
+    setNextCursor(null);
+    setContact('');
+    setMessages([]);
+    setError('');
+    setWorkspace(nextWorkspace);
   }
 
   if (user === undefined) return <main className="center-card">Connecting to Switchboard…</main>;
@@ -245,7 +273,7 @@ export function App() {
           {user.workspaces.length > 1 && (
             <label className="workspace-picker">
               <span className="sr-only">Workspace</span>
-              <select value={workspace} onChange={(event) => setWorkspace(event.target.value)}>
+              <select value={workspace} onChange={(event) => changeWorkspace(event.target.value)}>
                 {user.workspaces.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
               </select>
             </label>
