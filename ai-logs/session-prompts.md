@@ -7,68 +7,134 @@ raw export of hidden system or tool messages.
 
 ## Prompt 1
 
-> I am working on a 2-hour technical assessment called **Switchboard – Shared Team Inbox**.
->
-> I need you to act as my senior software engineering mentor. First, inspect my entire project and explain the current state before making any changes.
->
-> ### 1. Understand the assessment
-> Read these files in this exact order:
-> 1. `START_HERE.md`
-> 2. `BRIEF.md`
-> 3. `PIGEON.md`
-> Use these files as the source of truth. Do not invent requirements.
->
-> Important restrictions:
-> - Do NOT read `SUBMISSION.md` yet. It is intended for the final 10 minutes of the assessment.
-> - `REFERENCE.pdf` is lookup-only. Do not read it from beginning to end.
-> - Read `PAYBOX.md` and `BONUS_BILLING.md` only after the core requirements are completed.
->
-> ### 2. Inspect my current project
-> Check:
-> - Existing folder and file structure.
-> - `package.json` and available scripts.
-> - `scaffold/server` and `scaffold/web`.
-> - Existing backend source files.
-> - Existing frontend source files.
-> - Dependencies already installed or missing.
-> - Environment configuration.
-> - MongoDB and Redis configuration.
-> - Docker containers and assessment services, if their status can be checked.
->
-> ### 3. Tell me exactly what is already completed
-> I have already:
-> - Created the GitHub repository.
-> - Copied the assessment starter files into the project.
-> - Initialized Git and pushed the starter code.
-> - Started the Docker assessment services using `npm run up`.
-> - Successfully ran `npm run doctor`.
-> Do not assume that the application backend or frontend has already been implemented.
->
-> Tell me:
-> - Is the backend server actually implemented?
-> - Is the frontend implemented?
-> - Are dependencies installed?
-> - Is there an existing API?
-> - Is MongoDB configured?
-> - Is Redis configured?
-> - Which assessment services are running?
-> - What is still missing?
->
-> ### 4. Create a clear implementation plan
-> Compare the assessment requirements against the existing code. Give me a prioritized checklist divided into:
-> **Phase 1 – Setup:** remaining installation/configuration and backend/frontend startup.
-> **Phase 2 – Core backend:** endpoints, auth/authorization, models/relationships, webhooks, message storage/conversations, provider replies, and other brief requirements.
-> **Phase 3 – Frontend:** screens, API integration, auth, inbox/conversations, and replies.
-> **Phase 4 – Testing:** required commands, inbound/reply testing, and when to run `npm run check` and `npm run check:full`.
-> **Phase 5 – Final submission:** mention only final actions; do not open `SUBMISSION.md`.
->
-> ### 5. How I want you to work
-> I am still learning, so explain simply, give one task at a time, provide exact commands and expected results, do not skip important steps, avoid unnecessary changes, follow the assessment exactly, and prioritize one stored inbound webhook and one successful reply before running `npm run check`.
->
-> ### 6. First response
-> Do not modify files or write implementation code yet. First give me current project status, whether backend/frontend need to be built, what is complete, what remains, the exact next command, then wait for confirmation.
->
-> My URLs are `REDIS_URL=redis://localhost:6380` and `MONGODB_URI=mongodb://localhost:27018/assessment`.
+I am working on a 2-hour technical assessment called **Switchboard – Shared Team Inbox**.
+
+I need you to act as my senior software engineering mentor. First, inspect my entire project and explain the current state before making any changes.
+
+### 1. Understand the assessment
+Read these files in this exact order:
+
+1. `START_HERE.md`
+2. `BRIEF.md`
+3. `PIGEON.md`
+
+Use these files as the source of truth. Do not invent requirements.
+
+Important restrictions:
+
+- Do NOT read `SUBMISSION.md` yet. It is intended for the final 10 minutes of the assessment.
+- `REFERENCE.pdf` is lookup-only. Do not read it from beginning to end.
+- Read `PAYBOX.md` and `BONUS_BILLING.md` only after the core requirements are completed.
+
+### 2. Inspect my current project
+Check:
+
+- Existing folder and file structure.
+- `package.json` and available scripts.
+- `scaffold/server` and `scaffold/web`.
+- Existing backend source files.
+- Existing frontend source files.
+- Dependencies already installed or missing.
+- Environment configuration.
+- MongoDB and Redis configuration.
+- Docker containers and assessment services, if their status can be checked.
+
+### 3. Tell me exactly what is already completed
+I have already:
+
+- Created the GitHub repository.
+- Copied the assessment starter files into the project.
+- Initialized Git and pushed the starter code.
+- Started the Docker assessment services using `npm run up`.
+- Successfully ran `npm run doctor`.
+
+Do not assume that the application backend or frontend has already been implemented.
+
+Tell me:
+
+- Is the backend server actually implemented?
+- Is the frontend implemented?
+- Are dependencies installed?
+- Is there an existing API?
+- Is MongoDB configured?
+- Is Redis configured?
+- Which assessment services are running?
+- What is still missing?
+
+### 4. Create a clear implementation plan
+Compare the assessment requirements against the existing code.
+
+Give me a prioritized checklist divided into:
+
+**Phase 1 – Setup**
+
+- Remaining installation and configuration.
+- Backend and frontend startup.
+
+**Phase 2 – Core backend**
+
+- Required API endpoints.
+- Authentication and authorization.
+- Database models and relationships.
+- Webhook handling.
+- Message storage and conversation handling.
+- Sending replies through the messaging provider.
+- Any other backend requirements in `BRIEF.md` and `PIGEON.md`.
+
+**Phase 3 – Frontend**
+
+- Required screens.
+- API integration.
+- Authentication flow.
+- Inbox and conversation functionality.
+- Reply functionality.
+
+**Phase 4 – Testing**
+
+- Required commands from `START_HERE.md`.
+- How to test inbound messages.
+- How to test replies.
+- When to run `npm run check` and `npm run check:full`.
+
+**Phase 5 – Final submission**
+
+- Mention only the final actions required.
+- Do not open or read `SUBMISSION.md` yet.
+
+### 5. Very important: How I want you to work
+I am still learning, so:
+
+- Explain everything in simple language.
+- Give me one task at a time.
+- Provide exact terminal commands I can copy and paste.
+- Tell me which directory to run each command from.
+- Show me the expected result after each command.
+- Do not skip important steps.
+- Do not create unnecessary files or change existing working configurations.
+- Do not rewrite the whole project.
+- Follow the assessment requirements exactly.
+- Prioritize getting one inbound webhook stored and one reply successfully sent, then running `npm run check`, as instructed by the assessment.
+
+### 6. Your first response
+For now, DO NOT modify any files or write implementation code.
+
+First give me:
+
+1. Current project status.
+2. Whether the backend server already exists or needs to be built.
+3. Whether the frontend already exists or needs to be built.
+4. What has been completed.
+5. What remains to be done.
+6. The exact next command I should run.
+
+Wait for my confirmation before making changes.
+
+This URL is available:
+
+```text
+REDIS_URL=redis://localhost:6380
+MONGODB_URI=mongodb://localhost:27018/assessment
+```
 
 ## Prompt 2
 
@@ -102,6 +168,8 @@ The attached implementation request is retained verbatim in
   build` passed.
 - Manual inbound webhook was stored; a manual reply reached Pigeon with
   `delivered` status and an idempotency key.
+- Browser smoke test confirmed the signed-in inbox renders and a UI reply
+  reaches `delivered`; cursor pagination returned two distinct conversations.
 - `npm run check` passed level 1: 24/24.
 - `npm run check -- --levels 5` passed level 5: 15/15.
 - `npm run check:full` passed levels 1, 2, 3, and 5: 75/75.
