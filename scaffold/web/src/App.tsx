@@ -33,6 +33,7 @@ export function App() {
   const [user, setUser] = useState<User | null>();
   const [workspace, setWorkspace] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [contact, setContact] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [reply, setReply] = useState('');
@@ -47,14 +48,31 @@ export function App() {
 
   const refreshConversations = useCallback(async () => {
     if (!workspace) return;
-    const result = await requestJson<{ conversations: Conversation[] }>(
-      `/api/conversations?workspace=${encodeURIComponent(workspace)}`,
+    const result = await requestJson<{ conversations: Conversation[]; nextCursor: string | null }>(
+      `/api/conversations?workspace=${encodeURIComponent(workspace)}&limit=30`,
     );
     setConversations(result.conversations);
+    setNextCursor(result.nextCursor);
     setContact((current) => current && result.conversations.some((item) => item.contact === current)
       ? current
       : result.conversations[0]?.contact ?? '');
   }, [workspace]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!workspace || !nextCursor) return;
+    const result = await requestJson<{ conversations: Conversation[]; nextCursor: string | null }>(
+      `/api/conversations?workspace=${encodeURIComponent(workspace)}&limit=30&cursor=${encodeURIComponent(nextCursor)}`,
+    );
+    setConversations((current) => {
+      const byContact = new Map(current.map((item) => [item.contact, item]));
+      for (const item of result.conversations) byContact.set(item.contact, item);
+      return [...byContact.values()].sort(
+        (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
+          || a.contact.localeCompare(b.contact),
+      );
+    });
+    setNextCursor(result.nextCursor);
+  }, [workspace, nextCursor]);
 
   const refreshMessages = useCallback(async () => {
     if (!workspace || !contact) {
@@ -248,6 +266,11 @@ export function App() {
                 <strong>Your inbox is clear</strong>
                 <span>New customer messages will show up here.</span>
               </div>
+            )}
+            {nextCursor && (
+              <button className="load-more" onClick={() => void loadMoreConversations()}>
+                Load more conversations
+              </button>
             )}
           </div>
         </aside>

@@ -160,7 +160,14 @@ app.get('/api/conversations', asyncHandler(async (request, response) => {
     response.status(403).json({ error: 'workspace access denied' });
     return;
   }
-  response.json({ conversations: await listConversations(workspace) });
+  const requestedLimit = Number(request.query.limit ?? 30);
+  if (!Number.isInteger(requestedLimit) || requestedLimit < 1) {
+    response.status(400).json({ error: 'limit must be a positive integer' });
+    return;
+  }
+  const limit = Math.min(requestedLimit, 50);
+  const cursor = typeof request.query.cursor === 'string' ? request.query.cursor : undefined;
+  response.json(await listConversations(workspace, limit, cursor));
 }));
 
 app.get('/api/conversations/:contact/messages', asyncHandler(async (request, response) => {

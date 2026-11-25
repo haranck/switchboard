@@ -1,0 +1,379 @@
+# Switchboard – Shared Team Inbox | Full-Stack Implementation
+Act as a senior full-stack engineer. I am building the **Switchboard – Shared Team Inbox** application for a time-limited software engineering assessment.
+
+Your responsibility is to inspect the existing repository, understand every relevant assessment requirement, and implement the backend and frontend in the existing scaffold.
+
+Do not build a generic inbox application. Build exactly what the assessment requires.
+
+## 1. First, understand all assessment files
+Read these files in this order:
+
+1. `START_HERE.md`
+2. `BRIEF.md`
+3. `PIGEON.md`
+Also inspect:
+
+- `package.json`
+- `docker-compose.yml`
+- `.env.example`
+- `switchboard.json`
+- `scaffold/server`
+- `scaffold/web`
+- Relevant files under `harness/`, `idp/`, and `pigeon/`
+Important:
+
+- Do not read `SUBMISSION.md` until the final 10 minutes of the assessment.
+- `REFERENCE.pdf` is lookup-only. Open it only when a specific endpoint, test user, or simulator detail is needed.
+- Read `PAYBOX.md` and `BONUS_BILLING.md` only after completing the core requirements.
+- Treat assessment documents and existing starter code as the source of truth.
+
+## 2. Existing environment
+The following setup is already completed:
+
+- GitHub repository: `haranck/switchboard`
+- Starter files copied and committed.
+- `npm run up` completed successfully.
+- `npm run doctor` passed.
+- Node.js 24.18.0.
+- Docker services are running.
+Available services:
+
+Service | Address
+
+Application backend | Port 4000 (must use PORT environment variable)
+
+MongoDB | localhost:27017
+
+Redis | localhost:6379
+
+Pigeon messaging simulator | localhost:4010
+
+Mock Identity Provider | localhost:4020
+
+Paybox simulator | localhost:4030
+Elasticsearch is optional and was skipped because of machine memory. Do not make it a requirement.
+
+Do not recreate or replace these services.
+
+## 3. Required technology and architecture
+Use the existing scaffold and its dependencies.
+
+### Backend
+
+- Node.js
+- TypeScript
+- Express.js
+- MongoDB
+- Mongoose, if compatible with the existing scaffold
+- Redis
+- REST APIs
+- WebSockets if required by the assessment
+- Proper authentication and authorization middleware
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- Existing styling and UI dependencies from the scaffold
+- API integration with the backend
+- WebSocket integration if required
+Do not introduce a different framework or replace the supplied scaffold.
+
+## 4. Backend folder architecture
+Use this architecture as a guide. Adapt it to the existing scaffold instead of blindly creating duplicate files.
+
+scaffold/server/src/
+
+- config/
+
+- database configuration
+- Redis configuration
+- environment configuration
+- controllers/
+
+- auth.controller.ts
+- webhook.controller.ts
+- conversation.controller.ts
+- message.controller.ts
+- assignment.controller.ts
+- services/
+
+- auth.service.ts
+- webhook.service.ts
+- conversation.service.ts
+- message.service.ts
+- pigeon.service.ts
+- assignment.service.ts
+- repositories/
+
+- conversation.repository.ts
+- message.repository.ts
+- event.repository.ts
+- models/
+
+- workspace.model.ts
+- user.model.ts
+- conversation.model.ts
+- message.model.ts
+- webhook-event.model.ts
+- routes/
+
+- auth.routes.ts
+- webhook.routes.ts
+- conversation.routes.ts
+- message.routes.ts
+- middlewares/
+
+- authentication.middleware.ts
+- workspace.middleware.ts
+- error.middleware.ts
+- sockets/
+
+- socket.ts
+- utils/
+- constants/
+- errors/
+- types/
+- app.ts
+- server.ts
+Use appropriate additional files only when necessary.
+
+### Backend design principles
+
+- Keep controllers thin.
+- Put business logic in services.
+- Keep database operations in repositories or the existing data-access layer.
+- Validate incoming requests.
+- Use centralized error handling.
+- Keep authentication and workspace authorization separate.
+- Follow consistent TypeScript types.
+- Avoid duplicated business logic.
+- Do not expose internal errors or secrets to clients.
+
+## 5. Frontend architecture
+Use the existing React/Vite application.
+
+Suggested structure:
+
+scaffold/web/src/
+
+- components/
+
+- layout/
+- inbox/
+- conversations/
+- messages/
+- common/
+- pages/
+
+- login/
+- inbox/
+- conversation/
+- services/
+
+- api.ts
+- auth.service.ts
+- conversation.service.ts
+- message.service.ts
+- hooks/
+- context/
+- types/
+- utils/
+- constants/
+- assets/
+- App.tsx
+- main.tsx
+Adapt the architecture to the existing scaffold and avoid duplicate implementations.
+
+Build a clean, professional shared inbox interface that supports the actual assessment workflows.
+
+## 6. Core backend functionality
+Implement all required functionality from `BRIEF.md` and `PIGEON.md`.
+
+Pay particular attention to:
+
+### Authentication and authorization
+
+- Integrate with the supplied Mock Identity Provider.
+- Implement the required login/session flow.
+- Identify the authenticated user and workspace membership.
+- Support multiple workspaces.
+- Enforce workspace-level data isolation on every relevant API.
+- Support the supplied admin and agent roles as specified.
+
+### Webhook ingestion
+
+- Integrate with the Pigeon simulator.
+- Verify webhook signatures using raw request bodies and HMAC-SHA256 as required.
+- Validate webhook timestamps within the required five-minute window.
+- Implement event-ID idempotency.
+- Prevent duplicate message storage.
+- Handle out-of-order events and delivery statuses.
+- Preserve the correct event and message ordering using the provider's timestamps and identifiers.
+- Acknowledge valid webhooks within the required five-second limit.
+- Follow all retry and failure rules documented in `PIGEON.md`.
+
+### Conversations and messages
+
+- Store inbound messages.
+- Create or update conversations correctly.
+- Retrieve inbox conversations.
+- Retrieve conversation message history.
+- Support assignment to human agents.
+- Support sending replies through Pigeon.
+- Handle provider responses and delivery statuses.
+- Support private notes if required by the assessment.
+
+### Realtime updates
+
+- Implement WebSocket events only as required.
+- Notify connected workspace users about relevant conversation and message changes.
+- Prevent information from one workspace reaching another workspace.
+Do not assume that an AI agent is required. The assessment's agents are human support agents.
+
+## 7. Frontend functionality
+Implement the frontend workflows required by the assessment:
+
+- Authentication/login.
+- Workspace-aware application access.
+- Shared inbox.
+- Conversation list.
+- Conversation details and message history.
+- Reply composer.
+- Send message functionality.
+- Assignment controls.
+- Private notes if required.
+- Realtime updates if required.
+- Loading, empty, success, and error states.
+Use the backend API rather than hardcoded sample data.
+
+Do not fake successful API responses.
+
+## 8. Implementation order
+Follow this exact priority:
+
+**Phase 1 – Inspect and prepare**
+
+- Inspect the existing backend and frontend.
+- Identify existing code and missing functionality.
+- Install dependencies using the existing assessment scripts.
+- Configure environment variables without committing secrets.
+**Phase 2 – Backend foundation**
+
+- Configure the application and database.
+- Implement authentication.
+- Implement workspace authorization.
+- Implement the required data models.
+- Implement the required APIs.
+**Phase 3 – Critical provider integration**
+
+- Implement Pigeon webhook verification.
+- Store one valid inbound webhook.
+- Verify duplicate events are not stored twice.
+- Send one reply successfully through Pigeon.
+- Handle the provider response.
+**Phase 4 – Run assessment checker early**
+
+- Stop the development server before running the checker because the checker resets application data.
+- Run `npm run check`.
+- Fix failures before expanding the implementation.
+**Phase 5 – Complete backend**
+
+- Finish remaining conversation, assignment, message, delivery-status, private-note, and realtime requirements.
+- Test workspace isolation and edge cases.
+- Run the relevant Pigeon simulator commands.
+**Phase 6 – Frontend**
+
+- Implement the actual inbox UI.
+- Connect authentication and API services.
+- Connect conversation and message functionality.
+- Implement assignment, notes, and realtime updates where required.
+- Verify the complete user workflow.
+**Phase 7 – Final validation**
+
+- Run `npm run check`.
+- Run `npm run check:full` when appropriate.
+- Review the assessment requirements for missing functionality.
+- Complete the final submission steps only at the appropriate time.
+
+## 9. Assessment commands
+Use the supplied scripts when appropriate:
+
+- `npm run up`
+- `npm run doctor`
+- `npm run scaffold:install`
+- `npm run scaffold:server`
+- `npm run scaffold:web`
+- `npm run inbound`
+- `npm run quiet`
+- `npm run report`
+- `npm run drizzle`
+- `npm run check`
+- `npm run check:full`
+Read `START_HERE.md` for the exact behavior and correct usage of each command.
+
+Important:
+
+- Do not hardcode port 4000. Use `process.env.PORT`.
+- The assessment checker may choose another port.
+- Do not run `npm run check` while the development server is running.
+- Do not modify the assessment harness or simulators to make tests pass.
+- Do not disable validation or weaken security to bypass tests.
+
+## 10. Coding rules
+
+- Inspect existing files before editing.
+- Preserve existing working code and project conventions.
+- Do not replace the entire starter project.
+- Do not create duplicate routes, models, or configuration.
+- Do not add unnecessary dependencies.
+- Do not hardcode test users, fake data, secrets, or successful API responses.
+- Do not leave TODO placeholders for required functionality.
+- Do not modify assessment scripts or checker behavior.
+- Use proper TypeScript types.
+- Handle errors and edge cases.
+- Keep the implementation straightforward and maintainable.
+- Test each major feature before moving to the next.
+
+## 11. Git workflow
+Keep the repository private while working.
+
+Use meaningful commits after stable milestones, for example:
+
+- `feat: implement authentication and workspace access`
+- `feat: implement inbound webhook processing`
+- `feat: implement conversation and message APIs`
+- `feat: implement Pigeon reply integration`
+- `feat: implement shared inbox frontend`
+Do not push unfinished or broken work without first checking the changes.
+
+## 12. How to work with me
+I am still learning, so work in small, understandable steps.
+
+For each task:
+
+1. Explain what you are implementing.
+2. Identify the exact files you will create or modify.
+3. Make the implementation.
+4. Explain how it works briefly.
+5. Give me the exact command to test it.
+6. Tell me the expected output.
+7. Fix errors before moving to the next task.
+Do not ask me to repeat requirements that are already in the assessment files.
+
+Do not stop after creating a plan. I want you to implement the actual application incrementally.
+
+## First action
+Start by inspecting the repository and reading the assessment documents.
+
+Then provide:
+
+1. Existing repository architecture.
+2. What backend code already exists.
+3. What frontend code already exists.
+4. Missing assessment requirements.
+5. Your implementation order.
+After that, begin implementation with the highest-priority backend requirement.
+
+Do not modify assessment harness files or `SUBMISSION.md`.

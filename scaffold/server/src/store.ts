@@ -358,12 +358,54 @@ export async function setConversationStatus(
   }
 }
 
-export async function listConversations(workspace: string): Promise<Conversation[]> {
-  return (await getDbPromise()).collection<Conversation>('conversations')
-    .find({ workspace })
+export async function listConversations(
+  workspace: string,
+  limit: number,
+  cursor?: string,
+): Promise<{ conversations: Conversation[]; nextCursor: string | null }> {
+  const filter: Document = { workspace };
+  if (cursor) {
+    let position: { lastActivity: string; contact: string };
+    try {
+      position = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as typeof position;
+    } catch {
+      const error = new Error('Invalid conversation cursor');
+      Object.assign(error, { status: 400 });
+      throw error;
+    }
+    if (typeof position !== 'object' || position === null
+      || typeof position.lastActivity !== 'string'
+      || typeof position.contact !== 'string') {
+      const error = new Error('Invalid conversation cursor');
+      Object.assign(error, { status: 400 });
+      throw error;
+    }
+    const lastActivity = new Date(position.lastActivity);
+    if (Number.isNaN(lastActivity.getTime())) {
+      const error = new Error('Invalid conversation cursor');
+      Object.assign(error, { status: 400 });
+      throw error;
+    }
+    filter.$or = [
+      { lastActivity: { $lt: lastActivity } },
+      { lastActivity, contact: { $gt: position.contact } },
+    ];
+  }
+  const records = await (await getDbPromise()).collection<Conversation>('conversations')
+    .find(filter)
     .sort({ lastActivity: -1, contact: 1 })
-    .limit(100)
+    .limit(limit + 1)
     .toArray();
+  const hasMore = records.length > limit;
+  const conversations = hasMore ? records.slice(0, limit) : records;
+  const last = conversations[conversations.length - 1];
+  const nextCursor = hasMore && last
+    ? Buffer.from(JSON.stringify({
+      lastActivity: last.lastActivity.toISOString(),
+      contact: last.contact,
+    })).toString('base64url')
+    : null;
+  return { conversations, nextCursor };
 }
 
 export async function listMessages(workspace: string, contact: string): Promise<StoredMessage[]> {
