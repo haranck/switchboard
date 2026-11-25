@@ -12,7 +12,7 @@ export const config = {
   port: Number(env('PORT', '4000')),
   webOrigin: env('WEB_ORIGIN', 'http://localhost:5173'),
   graderToken: env('GRADER_TOKEN', 'grader-dev-token'),
-  mongoUrl: env('MONGO_URL', 'mongodb://localhost:27017/switchboard'),
+  mongoUrl: env('MONGO_URL', env('MONGODB_URI', 'mongodb://localhost:27017/switchboard')),
   redisUrl: env('REDIS_URL', 'redis://localhost:6379'),
   elasticsearchUrl: env('ELASTICSEARCH_URL', 'http://localhost:9200'),
   pigeon: {

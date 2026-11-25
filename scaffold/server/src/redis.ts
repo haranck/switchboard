@@ -8,3 +8,7 @@ export function getRedis(): Redis {
   if (!redis) redis = new Redis(config.redisUrl, { lazyConnect: false, maxRetriesPerRequest: 2 });
   return redis;
 }
+
+export function createRedisSubscriber(): Redis {
+  return getRedis().duplicate({ maxRetriesPerRequest: 2 });
+}
