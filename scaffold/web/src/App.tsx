@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  decryptPrivateNote,
+  encryptPrivateNote,
+  generateWorkspaceKey,
+  isValidWorkspaceKey,
+} from './privateNotes.js';
 
 type Workspace = { id: string; role: 'admin' | 'agent' };
 type User = { sub: string; workspaces: Workspace[] };
@@ -15,6 +21,17 @@ type Message = {
   text: string;
   occurredAt: string;
   status?: string;
+};
+type PrivateNote = {
+  noteId: string;
+  workspace: string;
+  contact: string;
+  author: string;
+  iv: string;
+  ciphertext: string;
+  createdAt: string;
+  text?: string;
+  decryptionFailed?: boolean;
 };
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -37,17 +54,35 @@ export function App() {
   const [contact, setContact] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [reply, setReply] = useState('');
+  const [privateNotes, setPrivateNotes] = useState<PrivateNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [activeView, setActiveView] = useState<'messages' | 'notes'>('messages');
+  const [workspaceKey, setWorkspaceKey] = useState('');
+  const [workspaceKeyInput, setWorkspaceKeyInput] = useState('');
+  const [showWorkspaceKey, setShowWorkspaceKey] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pendingReply = useRef<{ text: string; clientRef: string } | null>(null);
+  const pendingNote = useRef<{
+    workspace: string;
+    contact: string;
+    text: string;
+    noteId: string;
+    encrypted?: { iv: string; ciphertext: string };
+  } | null>(null);
   const lastSeq = useRef(0);
   const workspaceGeneration = useRef(0);
+  const privateNotesRequest = useRef(0);
   const selectionRef = useRef({ workspace, contact });
   selectionRef.current = { workspace, contact };
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.contact === contact),
     [conversations, contact],
+  );
+  const visiblePrivateNotes = privateNotes.filter(
+    (note) => note.workspace === workspace && note.contact === contact,
   );
 
   const refreshConversations = useCallback(async () => {
@@ -97,6 +132,57 @@ export function App() {
     setMessages(result.messages);
   }, [workspace, contact]);
 
+  const refreshPrivateNotes = useCallback(async () => {
+    const requestId = ++privateNotesRequest.current;
+    if (!workspace || !contact) {
+      setPrivateNotes([]);
+      setNotesLoading(false);
+      return;
+    }
+    const generation = workspaceGeneration.current;
+    setNotesLoading(true);
+    try {
+      const result = await requestJson<{ notes: PrivateNote[] }>(
+        `/api/conversations/${encodeURIComponent(contact)}/notes?workspace=${encodeURIComponent(workspace)}`,
+      );
+      if (requestId !== privateNotesRequest.current
+        || generation !== workspaceGeneration.current
+        || selectionRef.current.workspace !== workspace
+        || selectionRef.current.contact !== contact) return;
+      const decrypted = await Promise.all(result.notes.map(async (note) => {
+        if (!workspaceKey) return note;
+        try {
+          return {
+            ...note,
+            text: await decryptPrivateNote(
+              note.ciphertext,
+              note.iv,
+              workspaceKey,
+              note.workspace,
+              note.contact,
+              note.noteId,
+            ),
+          };
+        } catch {
+          return { ...note, decryptionFailed: true };
+        }
+      }));
+      if (requestId === privateNotesRequest.current
+        && generation === workspaceGeneration.current
+        && selectionRef.current.workspace === workspace
+        && selectionRef.current.contact === contact) {
+        setPrivateNotes(decrypted);
+      }
+    } finally {
+      if (requestId === privateNotesRequest.current
+        && generation === workspaceGeneration.current
+        && selectionRef.current.workspace === workspace
+        && selectionRef.current.contact === contact) {
+        setNotesLoading(false);
+      }
+    }
+  }, [workspace, contact, workspaceKey]);
+
   useEffect(() => {
     requestJson<User>('/api/me')
       .then((me) => {
@@ -118,6 +204,20 @@ export function App() {
   useEffect(() => {
     refreshMessages().catch((cause: unknown) => setError(String(cause)));
   }, [refreshMessages]);
+
+  useEffect(() => {
+    refreshPrivateNotes().catch((cause: unknown) => setError(String(cause)));
+  }, [refreshPrivateNotes]);
+
+  useEffect(() => {
+    const key = workspace ? localStorage.getItem(`switchboard-note-key:${workspace}`) ?? '' : '';
+    setWorkspaceKey(key);
+    setWorkspaceKeyInput(key);
+    setShowWorkspaceKey(false);
+    setPrivateNotes([]);
+    setNoteDraft('');
+    pendingNote.current = null;
+  }, [workspace]);
 
   useEffect(() => {
     if (!workspace) return;
@@ -142,6 +242,7 @@ export function App() {
           }
           void refreshConversations();
           void refreshMessages();
+          void refreshPrivateNotes();
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : 'Received an invalid live update');
         }
@@ -158,7 +259,7 @@ export function App() {
       if (retry) clearTimeout(retry);
       socket?.close();
     };
-  }, [workspace, refreshConversations, refreshMessages]);
+  }, [workspace, refreshConversations, refreshMessages, refreshPrivateNotes]);
 
   async function claimConversation() {
     if (!selected) return;
@@ -217,6 +318,75 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendPrivateNote(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || !workspaceKey || !noteDraft.trim()) return;
+    setBusy(true);
+    setError('');
+    const text = noteDraft.trim();
+    const pending = pendingNote.current;
+    const matchingPending = pending?.workspace === workspace
+      && pending.contact === selected.contact
+      && pending.text === text
+      ? pending
+      : null;
+    const noteId = matchingPending?.noteId ?? crypto.randomUUID();
+    const pendingRequest = matchingPending ?? { workspace, contact: selected.contact, text, noteId };
+    pendingNote.current = pendingRequest;
+    try {
+      pendingRequest.encrypted ??= await encryptPrivateNote(
+        text,
+        workspaceKey,
+        workspace,
+        selected.contact,
+        noteId,
+      );
+      await requestJson(`/api/conversations/${encodeURIComponent(selected.contact)}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({
+          workspace,
+          note_id: noteId,
+          iv: pendingRequest.encrypted.iv,
+          ciphertext: pendingRequest.encrypted.ciphertext,
+        }),
+      });
+      pendingNote.current = null;
+      setNoteDraft('');
+      try {
+        await refreshPrivateNotes();
+      } catch {
+        setError('Note saved, but the notes list could not be refreshed.');
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function useWorkspaceKey() {
+    const key = workspaceKeyInput.trim();
+    if (!isValidWorkspaceKey(key)) {
+      setError('Workspace key must be a valid 32-byte base64url key.');
+      return;
+    }
+    localStorage.setItem(`switchboard-note-key:${workspace}`, key);
+    setWorkspaceKey(key);
+    setWorkspaceKeyInput(key);
+    setShowWorkspaceKey(false);
+    setError('');
+  }
+
+  function createWorkspaceKey() {
+    if (workspaceKey) return;
+    const key = generateWorkspaceKey();
+    localStorage.setItem(`switchboard-note-key:${workspace}`, key);
+    setWorkspaceKey(key);
+    setWorkspaceKeyInput(key);
+    setShowWorkspaceKey(true);
+    setError('');
   }
 
   async function switchUser() {
@@ -344,33 +514,105 @@ export function App() {
                   </button>
                 </div>
               </header>
-              <div className="message-list">
-                {messages.map((message) => (
-                  <article className={`message ${message.direction}`} key={message.messageId}>
-                    <p>{message.text}</p>
-                    <footer>
-                      <time>{new Date(message.occurredAt).toLocaleString()}</time>
-                      {message.direction === 'outbound' && <span>{message.status}</span>}
-                    </footer>
-                  </article>
-                ))}
-                {messages.length === 0 && <p className="empty-thread">No messages in this conversation yet.</p>}
-              </div>
-              <form className="reply-composer" onSubmit={sendReply}>
-                <textarea
-                  aria-label="Write a reply"
-                  placeholder="Write a reply…"
-                  value={reply}
-                  onChange={(event) => setReply(event.target.value)}
-                  rows={3}
-                />
-                <div className="composer-footer">
-                  <span>Reply as {user.sub}</span>
-                  <button className="primary-button" disabled={busy || !reply.trim()}>
-                    {busy ? 'Sending…' : 'Send reply'}
-                  </button>
-                </div>
-              </form>
+              <nav className="detail-tabs" aria-label="Conversation view">
+                <button aria-pressed={activeView === 'messages'} onClick={() => setActiveView('messages')}>Messages</button>
+                <button aria-pressed={activeView === 'notes'} onClick={() => setActiveView('notes')}>Private notes</button>
+              </nav>
+              {activeView === 'messages' ? (
+                <>
+                  <div className="message-list">
+                    {messages.map((message) => (
+                      <article className={`message ${message.direction}`} key={message.messageId}>
+                        <p>{message.text}</p>
+                        <footer>
+                          <time>{new Date(message.occurredAt).toLocaleString()}</time>
+                          {message.direction === 'outbound' && <span>{message.status}</span>}
+                        </footer>
+                      </article>
+                    ))}
+                    {messages.length === 0 && <p className="empty-thread">No messages in this conversation yet.</p>}
+                  </div>
+                  <form className="reply-composer" onSubmit={sendReply}>
+                    <textarea
+                      aria-label="Write a reply"
+                      placeholder="Write a reply…"
+                      value={reply}
+                      onChange={(event) => setReply(event.target.value)}
+                      rows={3}
+                    />
+                    <div className="composer-footer">
+                      <span>Reply as {user.sub}</span>
+                      <button className="primary-button" disabled={busy || !reply.trim()}>
+                        {busy ? 'Sending…' : 'Send reply'}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <section className="private-notes-view">
+                  <div className="workspace-key-panel">
+                    <strong>Workspace encryption key</strong>
+                    <p>Generate a key once and share it with workspace teammates through a secure channel. It stays in this browser; Switchboard stores ciphertext plus visible workspace, conversation, author, and time metadata.</p>
+                    <div className="workspace-key-controls">
+                      <input
+                        aria-label="Workspace encryption key"
+                        type={showWorkspaceKey ? 'text' : 'password'}
+                        autoComplete="off"
+                        value={workspaceKeyInput}
+                        onChange={(event) => setWorkspaceKeyInput(event.target.value)}
+                      />
+                      <button type="button" className="secondary-button" onClick={useWorkspaceKey}>Use key</button>
+                      <button type="button" className="secondary-button" disabled={Boolean(workspaceKey)} onClick={createWorkspaceKey}>
+                        {workspaceKey ? 'Key installed' : 'Generate key'}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={!workspaceKey}
+                        onClick={() => {
+                          setWorkspaceKeyInput(workspaceKey);
+                          setShowWorkspaceKey(!showWorkspaceKey);
+                        }}
+                      >
+                        {showWorkspaceKey ? 'Hide key' : 'Show/export key'}
+                      </button>
+                    </div>
+                    <small>Replacing this browser’s key can make older notes unreadable unless you kept the previous key.</small>
+                  </div>
+                  <div className="private-note-list">
+                    {visiblePrivateNotes.map((note) => (
+                      <article className="private-note" key={note.noteId}>
+                        <p>{note.text ?? (note.decryptionFailed
+                          ? 'Could not decrypt this note with the installed key.'
+                          : 'Import the workspace key to decrypt this note.')}</p>
+                        <footer>
+                          <span>{note.author}</span>
+                          <time>{new Date(note.createdAt).toLocaleString()}</time>
+                        </footer>
+                      </article>
+                    ))}
+                    {notesLoading
+                      ? <p className="empty-thread">Loading private notes…</p>
+                      : visiblePrivateNotes.length === 0 && <p className="empty-thread">No private notes for this conversation yet.</p>}
+                  </div>
+                  <form className="reply-composer note-composer" onSubmit={sendPrivateNote}>
+                    <textarea
+                      aria-label="Write a private note"
+                      placeholder={workspaceKey ? 'Write a private note…' : 'Install a workspace key to write notes…'}
+                      value={noteDraft}
+                      onChange={(event) => setNoteDraft(event.target.value)}
+                      rows={3}
+                      disabled={!workspaceKey}
+                    />
+                    <div className="composer-footer">
+                      <span>Visible to workspace members with the key</span>
+                      <button className="primary-button" disabled={busy || !workspaceKey || !noteDraft.trim()}>
+                        {busy ? 'Saving…' : 'Add private note'}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              )}
             </>
           ) : (
             <div className="empty-thread">

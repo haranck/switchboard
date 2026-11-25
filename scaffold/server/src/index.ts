@@ -19,10 +19,12 @@ import {
   enqueueReply,
   getSnapshot,
   listConversations,
+  listPrivateNotes,
   listMessages,
   processWebhookEvent,
   recoverPendingWebhooks,
   resetApplicationData,
+  savePrivateNote,
   setConversationStatus,
   startOutboxWorker,
   workspaceIds,
@@ -194,6 +196,64 @@ app.get('/api/conversations/:contact/messages', asyncHandler(async (request, res
     return;
   }
   response.json({ messages: await listMessages(workspace, request.params.contact) });
+}));
+
+app.get('/api/conversations/:contact/notes', asyncHandler(async (request, response) => {
+  const session = await getRequestSession(request);
+  if (!session) {
+    response.status(401).json({ error: 'authentication required' });
+    return;
+  }
+  const workspace = typeof request.query.workspace === 'string' ? request.query.workspace : '';
+  if (!isWorkspaceMember(session, workspace)) {
+    response.status(403).json({ error: 'workspace access denied' });
+    return;
+  }
+  response.json({ notes: await listPrivateNotes(workspace, request.params.contact) });
+}));
+
+app.post('/api/conversations/:contact/notes', asyncHandler(async (request, response) => {
+  const session = await getRequestSession(request);
+  if (!session) {
+    response.status(401).json({ error: 'authentication required' });
+    return;
+  }
+  const {
+    workspace,
+    note_id: noteId,
+    iv,
+    ciphertext,
+  } = request.body ?? {};
+  if (typeof workspace !== 'string' || !isWorkspaceMember(session, workspace)) {
+    response.status(403).json({ error: 'workspace access denied' });
+    return;
+  }
+  if (typeof noteId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(noteId)
+    || typeof iv !== 'string' || typeof ciphertext !== 'string') {
+    response.status(400).json({ error: 'note_id, iv and ciphertext are required' });
+    return;
+  }
+  const ivBytes = Buffer.from(iv, 'base64url');
+  const ciphertextBytes = Buffer.from(ciphertext, 'base64url');
+  if (ivBytes.length !== 12 || ivBytes.toString('base64url') !== iv
+    || ciphertextBytes.length < 16 || ciphertextBytes.length > 65_536
+    || ciphertextBytes.toString('base64url') !== ciphertext) {
+    response.status(400).json({ error: 'invalid encrypted note payload' });
+    return;
+  }
+  const saved = await savePrivateNote({
+    noteId,
+    workspace,
+    contact: request.params.contact,
+    author: session.sub,
+    iv,
+    ciphertext,
+  });
+  if (!saved) {
+    response.status(404).json({ error: 'conversation not found' });
+    return;
+  }
+  response.status(saved.created ? 201 : 200).json({ note: saved.note });
 }));
 
 app.post('/api/conversations/:contact/reply', asyncHandler(async (request, response) => {

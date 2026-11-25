@@ -60,10 +60,20 @@ lets you choose an agent; workspace memberships come from the IdP claims.
 - `scaffold/server/src/auth.ts` implements OpenID Connect authorization-code
   login with PKCE and server-side Redis sessions.
 - `scaffold/server/src/store.ts` handles MongoDB persistence, webhook recovery,
-  reply outbox retries, atomic claims, workspace event sequencing, and inbox
-  queries.
+  reply outbox retries, encrypted private-note storage, atomic claims,
+  workspace event sequencing, and inbox queries.
 - `scaffold/web/src/App.tsx` provides the inbox, message history, assignment,
-  close/reopen, reply, and reconnecting live-update workflows.
+  close/reopen, reply, private notes, and reconnecting live-update workflows.
+
+## Private notes
+
+Private note text is encrypted in the browser with AES-256-GCM before it is
+sent to the API. In the **Private notes** tab, generate a workspace key once
+and share it with teammates through a secure channel; each teammate imports
+that same key in their browser. The key stays in local browser storage and
+cannot be recovered by Switchboard. The server sees note metadata but stores
+only ciphertext for the note content. See [PROTOCOL.md](./PROTOCOL.md) for
+what the server stores and the security limitations.
 
 Replies are written to MongoDB before acceptance and dispatched by a leased
 outbox worker. Pigeon idempotency keys protect retries when its response is

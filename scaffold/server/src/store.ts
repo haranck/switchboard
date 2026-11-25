@@ -26,6 +26,16 @@ export interface StoredMessage extends Document {
   status?: string;
 }
 
+export interface StoredPrivateNote extends Document {
+  _id: string;
+  workspace: string;
+  contact: string;
+  author: string;
+  iv: string;
+  ciphertext: string;
+  createdAt: Date;
+}
+
 const getDbPromise = () => getDb();
 
 function duplicateKey(error: unknown): boolean {
@@ -447,6 +457,75 @@ export async function listMessages(workspace: string, contact: string): Promise<
   ].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 }
 
+function publicPrivateNote(note: StoredPrivateNote) {
+  return {
+    noteId: note._id,
+    workspace: note.workspace,
+    contact: note.contact,
+    author: note.author,
+    iv: note.iv,
+    ciphertext: note.ciphertext,
+    createdAt: note.createdAt,
+  };
+}
+
+export async function listPrivateNotes(workspace: string, contact: string) {
+  const notes = await (await getDbPromise()).collection<StoredPrivateNote>('private_notes')
+    .find({ workspace, contact })
+    .sort({ createdAt: 1, _id: 1 })
+    .limit(500)
+    .toArray();
+  return notes.map(publicPrivateNote);
+}
+
+export async function savePrivateNote(input: {
+  noteId: string;
+  workspace: string;
+  contact: string;
+  author: string;
+  iv: string;
+  ciphertext: string;
+}): Promise<{ note: ReturnType<typeof publicPrivateNote>; created: boolean } | null> {
+  const database = await getDbPromise();
+  const conversation = await database.collection<Conversation>('conversations')
+    .findOne({ workspace: input.workspace, contact: input.contact }, { projection: { _id: 1 } });
+  if (!conversation) return null;
+
+  const note: StoredPrivateNote = {
+    _id: input.noteId,
+    workspace: input.workspace,
+    contact: input.contact,
+    author: input.author,
+    iv: input.iv,
+    ciphertext: input.ciphertext,
+    createdAt: new Date(),
+  };
+  const result = await database.collection<StoredPrivateNote>('private_notes').updateOne(
+    { _id: input.noteId },
+    { $setOnInsert: note },
+    { upsert: true },
+  );
+  const saved = await database.collection<StoredPrivateNote>('private_notes')
+    .findOne({ _id: input.noteId });
+  if (!saved) throw new Error('Private note was not persisted');
+  if (saved.workspace !== input.workspace || saved.contact !== input.contact
+    || saved.author !== input.author || saved.iv !== input.iv
+    || saved.ciphertext !== input.ciphertext) {
+    const error = new Error('note_id has already been used');
+    Object.assign(error, { status: 409 });
+    throw error;
+  }
+  const created = result.upsertedCount > 0;
+  if (created) {
+    await publishWorkspaceEvent(input.workspace, {
+      type: 'note.created',
+      contact: input.contact,
+      note_id: input.noteId,
+    });
+  }
+  return { note: publicPrivateNote(saved), created };
+}
+
 export async function getSnapshot(): Promise<Record<string, unknown>> {
   const database = await getDbPromise();
   const [conversations, messages, outbound] = await Promise.all([
@@ -489,6 +568,7 @@ export async function resetApplicationData(): Promise<void> {
     database.collection('messages').deleteMany({}),
     database.collection('conversations').deleteMany({}),
     database.collection('outbound').deleteMany({}),
+    database.collection('private_notes').deleteMany({}),
     database.collection('stream_events').deleteMany({}),
   ]);
   const redis = getRedis();

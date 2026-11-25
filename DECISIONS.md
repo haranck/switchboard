@@ -14,14 +14,13 @@ leased outbox worker using Pigeon's idempotency key. A lease can be reclaimed
 after a process dies; retrying the same key avoids sending an accepted reply a
 second time. Login uses authorization code + PKCE, validates the IdP's signed
 ID token, and stores the resulting session in Redis so another server copy can
-read it.
+read it. Private notes are encrypted in the browser with a shared workspace
+key; key sharing is deliberately out of band and documented in `PROTOCOL.md`.
 
-I did not implement private notes or Elasticsearch search in this pass.
-Encrypted notes require a client key-sharing protocol and a threat model; a
-server-readable shortcut would violate the brief. Search is optional and
-Elasticsearch is intentionally not required. The inbox API uses cursor
-pagination; the UI exposes a load-more action. The message history endpoint is
-currently capped at 500 messages per conversation.
+Elasticsearch search is not implemented; it is optional and would add an
+operational dependency. The inbox API uses cursor pagination; the UI exposes a
+load-more action. Message history and private-note retrieval are currently
+capped at 500 records per conversation.
 
 The public checker passed levels 1, 2, 3, and 5 (75/75). Level 4 is the hiring
 team's private written-rules check and cannot be run from this repository.

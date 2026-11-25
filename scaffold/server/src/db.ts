@@ -25,6 +25,7 @@ export async function ensureIndexes(): Promise<void> {
     db.collection('conversations').createIndex({ workspace: 1, lastActivity: -1 }),
     db.collection('outbound').createIndex({ workspace: 1, clientRef: 1 }, { unique: true }),
     db.collection('outbound').createIndex({ status: 1, nextAttemptAt: 1, leaseUntil: 1 }),
+    db.collection('private_notes').createIndex({ workspace: 1, contact: 1, createdAt: 1 }),
     db.collection('stream_events').createIndex({ workspace: 1, seq: 1 }, { unique: true }),
   ]);
 }
