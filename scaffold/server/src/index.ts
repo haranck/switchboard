@@ -3,7 +3,14 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { createServer, type IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
-import { beginLogin, finishLogin, getRequestSession, getSessionFromCookieHeader, isWorkspaceMember } from './auth.js';
+import {
+  beginLogin,
+  endSession,
+  finishLogin,
+  getRequestSession,
+  getSessionFromCookieHeader,
+  isWorkspaceMember,
+} from './auth.js';
 import { config } from './config.js';
 import { ensureIndexes, getDb } from './db.js';
 import { createRedisSubscriber, getRedis } from './redis.js';
@@ -138,6 +145,11 @@ app.get('/auth/login', asyncHandler(async (_request, response) => {
 
 app.get('/auth/callback', asyncHandler(async (request, response) => {
   await finishLogin(request, response);
+}));
+
+app.post('/auth/logout', asyncHandler(async (request, response) => {
+  await endSession(request, response);
+  response.status(204).end();
 }));
 
 app.get('/api/me', asyncHandler(async (request, response) => {

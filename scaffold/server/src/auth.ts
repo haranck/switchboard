@@ -200,6 +200,17 @@ export async function getRequestSession(request: Request): Promise<UserSession |
   return getSessionFromCookieHeader(request.headers.cookie);
 }
 
+export async function endSession(request: Request, response: Response): Promise<void> {
+  const sessionId = readCookie(request.headers.cookie, SESSION_COOKIE);
+  if (sessionId) await getRedis().del(`sb:session:${sessionId}`);
+  response.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: false,
+    path: '/',
+  });
+}
+
 export async function getSessionFromCookieHeader(cookie: string | undefined): Promise<UserSession | undefined> {
   const sessionId = readCookie(cookie, SESSION_COOKIE);
   if (!sessionId) return undefined;

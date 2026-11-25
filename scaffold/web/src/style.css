@@ -18,6 +18,7 @@ button:disabled { cursor: wait; opacity: .6; }
 .topbar-right { display: flex; align-items: center; gap: 16px; }
 .workspace-picker select { padding: 9px 28px 9px 12px; border: 1px solid #dfe6e9; border-radius: 8px; background: white; color: #334454; }
 .user-badge { padding: 8px 12px; border-radius: 18px; background: #f1f5f4; color: #42615b; font-size: 12px; font-weight: 700; }
+.switch-user { white-space: nowrap; }
 .inbox-layout { display: grid; grid-template-columns: 350px minmax(0, 1fr); min-height: calc(100vh - 68px); max-width: 1500px; margin: auto; }
 .conversation-panel { background: white; border-right: 1px solid #e8edf1; }
 .panel-heading { height: 106px; padding: 24px 23px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #edf0f2; }

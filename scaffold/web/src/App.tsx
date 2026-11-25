@@ -202,6 +202,24 @@ export function App() {
     }
   }
 
+  async function switchUser() {
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/auth/logout', { method: 'POST' });
+      if (!response.ok) throw new Error(`Could not sign out (${response.status})`);
+      setUser(null);
+      setWorkspace('');
+      setConversations([]);
+      setMessages([]);
+      setContact('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (user === undefined) return <main className="center-card">Connecting to Switchboard…</main>;
   if (!user) {
     return (
@@ -233,6 +251,9 @@ export function App() {
             </label>
           )}
           <span className="user-badge">{user.sub}</span>
+          <button className="secondary-button switch-user" disabled={busy} onClick={switchUser}>
+            Switch user
+          </button>
         </div>
       </header>
 
